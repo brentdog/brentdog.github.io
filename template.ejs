@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Gallery</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-color: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-color: #38bdf8;
+      --accent-hover: #0284c7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto 2rem auto;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+    }
+
+    .controls {
+      max-width: 1200px;
+      margin: 0 auto 2rem auto;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.8rem 1.2rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background-color: var(--card-bg);
+      color: var(--text-color);
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-color);
+    }
+
+    .gallery-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .album-card {
+      background-color: var(--card-bg);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .album-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .thumbnail-container {
+      width: 100%;
+      height: 180px;
+      background-color: #0f172a;
+      overflow: hidden;
+    }
+
+    .thumbnail-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      justify-content: space-between;
+    }
+
+    .album-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .album-link {
+      text-decoration: none;
+      color: var(--accent-color);
+      font-weight: 500;
+    }
+
+    .album-link:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Photo Gallery</h1>
+    <p><%= albums.length %> Albums Archived</p>
+  </header>
+
+  <div class="controls">
+    <input type="text" id="searchInput" class="search-input" placeholder="Search albums..." onkeyup="filterAlbums()">
+  </div>
+
+  <main class="gallery-grid" id="galleryGrid">
+    <% albums.forEach(function(album) { %>
+      <div class="album-card">
+        <% if (album.thumbnail) { %>
+          <div class="thumbnail-container">
+            <img src="<%= album.thumbnail %>" alt="<%= album.title %>" class="thumbnail-img" loading="lazy">
+          </div>
+        <% } %>
+        <div class="card-body">
+          <h2 class="album-title"><%= album.title %></h2>
+          <a href="<%= album.url %>" target="_blank" rel="noopener noreferrer" class="album-link">Open Album &rarr;</a>
+        </div>
+      </div>
+    <% }); %>
+  </main>
+
+  <script>
+    function filterAlbums() {
+      const input = document.getElementById('searchInput').value.toLowerCase();
+      const cards = document.querySelectorAll('.album-card');
+
+      cards.forEach(card => {
+        const title = card.querySelector('.album-title').innerText.toLowerCase();
+        card.style.display = title.includes(input) ? 'flex' : 'none';
+      });
+    }
+  </script>
+
+</body>
+</html>
