@@ -11,7 +11,6 @@
       --text-color: #f8fafc;
       --text-muted: #94a3b8;
       --accent-color: #38bdf8;
-      --accent-hover: #0284c7;
     }
 
     * {
@@ -71,6 +70,13 @@
       gap: 1.5rem;
     }
 
+    /* Entire Card Clickable */
+    .album-card-link {
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+    }
+
     .album-card {
       background-color: var(--card-bg);
       border-radius: 10px;
@@ -78,12 +84,14 @@
       border: 1px solid #334155;
       display: flex;
       flex-direction: column;
-      transition: transform 0.2s, box-shadow 0.2s;
+      width: 100%;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
-    .album-card:hover {
+    .album-card-link:hover .album-card {
       transform: translateY(-4px);
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+      border-color: var(--accent-color);
     }
 
     .thumbnail-container {
@@ -91,12 +99,25 @@
       height: 180px;
       background-color: #0f172a;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .thumbnail-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .album-card-link:hover .thumbnail-img {
+      transform: scale(1.05);
+    }
+
+    .thumbnail-placeholder {
+      font-size: 2.5rem;
+      color: #475569;
     }
 
     .card-body {
@@ -110,18 +131,14 @@
     .album-title {
       font-size: 1.1rem;
       font-weight: 600;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
     }
 
-    .album-link {
-      text-decoration: none;
+    .album-action {
       color: var(--accent-color);
       font-weight: 500;
-    }
-
-    .album-link:hover {
-      color: var(--accent-hover);
-      text-decoration: underline;
+      font-size: 0.95rem;
     }
   </style>
 </head>
@@ -138,28 +155,32 @@
 
   <main class="gallery-grid" id="galleryGrid">
     <% albums.forEach(function(album) { %>
-      <div class="album-card">
-        <% if (album.thumbnail) { %>
+      <a href="<%= album.url %>" target="_blank" rel="noopener noreferrer" class="album-card-link">
+        <div class="album-card">
           <div class="thumbnail-container">
-            <img src="<%= album.thumbnail %>" alt="<%= album.title %>" class="thumbnail-img" loading="lazy">
+            <% if (album.thumbnail) { %>
+              <img src="<%= album.thumbnail %>" alt="<%= album.title %>" class="thumbnail-img" loading="lazy">
+            <% } else { %>
+              <span class="thumbnail-placeholder">📷</span>
+            <% } %>
           </div>
-        <% } %>
-        <div class="card-body">
-          <h2 class="album-title"><%= album.title %></h2>
-          <a href="<%= album.url %>" target="_blank" rel="noopener noreferrer" class="album-link">Open Album &rarr;</a>
+          <div class="card-body">
+            <h2 class="album-title"><%= album.title %></h2>
+            <span class="album-action">Open Album &rarr;</span>
+          </div>
         </div>
-      </div>
+      </a>
     <% }); %>
   </main>
 
   <script>
     function filterAlbums() {
       const input = document.getElementById('searchInput').value.toLowerCase();
-      const cards = document.querySelectorAll('.album-card');
+      const cardLinks = document.querySelectorAll('.album-card-link');
 
-      cards.forEach(card => {
-        const title = card.querySelector('.album-title').innerText.toLowerCase();
-        card.style.display = title.includes(input) ? 'flex' : 'none';
+      cardLinks.forEach(link => {
+        const title = link.querySelector('.album-title').innerText.toLowerCase();
+        link.style.display = title.includes(input) ? 'flex' : 'none';
       });
     }
   </script>
