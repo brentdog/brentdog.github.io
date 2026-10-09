@@ -12,18 +12,24 @@ function buildGallery() {
     const rawData = fs.readFileSync(JSON_PATH, 'utf8');
     const rawAlbums = JSON.parse(rawData);
 
-    // Normalize keys in case JSON uses share_link or url
     const albums = rawAlbums.map(album => ({
       title: album.title || 'Untitled Album',
       url: album.url || album.share_link || '#',
       thumbnail: album.thumbnail || album.thumbnail_link || ''
     }));
 
+    // Format current timestamp (e.g., "October 9, 2026 at 4:55 PM UTC")
+    const buildTime = new Date().toLocaleString('en-US', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+      timeZone: 'UTC' // Optional: locks time display to UTC for consistency in GitHub Actions
+    });
+
     if (!fs.existsSync(DIST_DIR)) {
       fs.mkdirSync(DIST_DIR, { recursive: true });
     }
 
-    ejs.renderFile(TEMPLATE_PATH, { albums }, (err, str) => {
+    ejs.renderFile(TEMPLATE_PATH, { albums, buildTime }, (err, str) => {
       if (err) {
         console.error('Error rendering EJS template:', err);
         process.exit(1);
