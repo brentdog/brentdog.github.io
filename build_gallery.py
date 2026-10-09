@@ -1,51 +1,54 @@
-import os
 import json
+import os
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
-CLIENT_ID = os.environ.get("GPHOTOS_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("GPHOTOS_CLIENT_SECRET")
-REFRESH_TOKEN = os.environ.get("GPHOTOS_REFRESH_TOKEN")
+INPUT_FILE = "google_photos_albums.json"
+CACHE_FILE = "cache.json"
+OUTPUT_FILE = "index.html"
 
-def get_access_token():
-    token_url = "https://oauth2.googleapis.com/token"
-    payload = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": REFRESH_TOKEN,
-        "grant_type": "refresh_token",
+# Rate-limiting parameters
+MAX_WORKERS = 5  # Keep low to avoid HTTP 429 rate limits
+TIMEOUT = 10      # Timeout per HTTP request in seconds
+
+def get_album_info(share_url, session, cache):
+    # Return cached metadata if already fetched
+    if share_url in cache:
+        return cache[share_url]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    res = requests.post(token_url, data=payload)
-    res.raise_for_status()
-    return res.json()["access_token"]
-
-def fetch_albums(access_token):
-    albums = []
-    headers = {"Authorization": f"Bearer {access_token}"}
-    url = "https://photoslibrary.googleapis.com/v1/albums?pageSize=50"
     
-    while url:
-        res = requests.get(url, headers=headers)
-        res.raise_for_status()
-        data = res.json()
-        
-        for item in data.get("albums", []):
-            # Only include albums that have photos and a cover photo
-            if "coverPhotoBaseUrl" in item:
-                albums.append({
-                    "title": item.get("title", "Untitled Album"),
-                    "link": item.get("productUrl"),
-                    # Append sizing parameters: width 500, height 500, cropped
-                    "thumb": f"{item['coverPhotoBaseUrl']}=w500-h500-c"
-                })
-        
-        page_token = data.get("nextPageToken")
-        url = f"https://photoslibrary.googleapis.com/v1/albums?pageSize=50&pageToken={page_token}" if page_token else None
+    for attempt in range(3):
+        try:
+            res = session.get(share_url, headers=headers, allow_redirects=True, timeout=TIMEOUT)
+            res.raise_for_status()
 
-    return albums
+            # Extract title
+            title_match = re.search(r'<meta property="og:title" content="([^"]+)"', res.text)
+            title = title_match.group(1) if title_match else "Photo Album"
+
+            # Extract cover thumbnail
+            image_match = re.search(r'<meta property="og:image" content="([^"]+)"', res.text)
+            thumb = f"{image_match.group(1)}=w500-h500-c" if image_match else ""
+
+            result = {"title": title, "link": share_url, "thumb": thumb}
+            cache[share_url] = result
+            return result
+        except Exception as e:
+            time.sleep(1.5 * (attempt + 1))  # Exponential backoff on retry
+
+    print(f"[Warning] Failed to fetch metadata for: {share_url}")
+    return {"title": "Photo Album", "link": share_url, "thumb": ""}
 
 def generate_html(albums):
     grid_items = ""
     for album in albums:
+        if not album.get("thumb"):
+            continue
         grid_items += f'''
         <a href="{album['link']}" target="_blank" rel="noopener noreferrer" class="card">
             <img src="{album['thumb']}" alt="{album['title']}" loading="lazy" />
@@ -60,69 +63,57 @@ def generate_html(albums):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photo Galleries</title>
     <style>
-        :root {{
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --text: #f8fafc;
-        }}
-        body {{
-            font-family: system-ui, -apple-system, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 2rem;
-        }}
-        h1 {{
-            text-align: center;
-            margin-bottom: 2rem;
-        }}
-        .grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 1.5rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }}
-        .card {{
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            overflow: hidden;
-            text-decoration: none;
-            color: inherit;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            display: flex;
-            flex-direction: column;
-        }}
-        .card:hover {{
-            transform: translateY(-4px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }}
-        .card img {{
-            width: 100%;
-            height: 240px;
-            object-fit: cover;
-        }}
-        .card-title {{
-            padding: 1rem;
-            font-weight: 600;
-            font-size: 1rem;
-            text-align: center;
-        }}
+        :root {{ --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; }}
+        body {{ font-family: system-ui, sans-serif; background-color: var(--bg); color: var(--text); padding: 2rem; margin: 0; }}
+        h1 {{ text-align: center; margin-bottom: 2rem; }}
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem; max-width: 1400px; margin: 0 auto; }}
+        .card {{ background-color: var(--card-bg); border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; }}
+        .card:hover {{ transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.4); }}
+        .card img {{ width: 100%; height: 240px; object-fit: cover; }}
+        .card-title {{ padding: 1rem; font-weight: 600; text-align: center; font-size: 0.95rem; }}
     </style>
 </head>
 <body>
     <h1>Photo Galleries</h1>
-    <div class="grid">
-        {grid_items}
-    </div>
+    <div class="grid">{grid_items}</div>
 </body>
 </html>
 '''
-    with open("index.html", "w", encoding="utf-8") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html_content)
 
 if __name__ == "__main__":
-    token = get_access_token()
-    albums = fetch_albums(token)
-    generate_html(albums)
-    print(f"Successfully generated gallery with {len(albums)} albums.")
+    if not os.path.exists(INPUT_FILE):
+        print(f"Error: {INPUT_FILE} not found!")
+        exit(1)
+
+    with open(INPUT_FILE, "r") as f:
+        urls = json.load(f)
+
+    # Load cache if available
+    cache = {}
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+
+    print(f"Processing {len(urls)} album links ({len(cache)} cached)...")
+
+    results = []
+    session = requests.Session()
+
+    # Process links concurrently in small worker batches
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_url = {executor.submit(get_album_info, url, session, cache): url for url in urls}
+        for future in as_completed(future_to_url):
+            results.append(future.result())
+
+    # Save updated cache
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f, indent=2)
+
+    # Render gallery
+    generate_html(results)
+    print(f"Successfully processed {len(results)} albums and updated {OUTPUT_FILE}.")
