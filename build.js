@@ -22,7 +22,7 @@ function buildGallery() {
     const buildTime = new Date().toLocaleString('en-US', {
       dateStyle: 'long',
       timeStyle: 'short',
-      timeZone: 'UTC' // Optional: locks time display to UTC for consistency in GitHub Actions
+      timeZone: 'America/Denver'
     });
 
     if (!fs.existsSync(DIST_DIR)) {
